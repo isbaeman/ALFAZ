@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#050505">
+<title>Lyrics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400&family=Noto+Nastaliq+Urdu:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#050505;--ink:#ece6dc;--beige:#c9b8a0}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--ink);font-family:'Manrope',system-ui,sans-serif;overflow:hidden;-webkit-tap-highlight-color:transparent}
+body::before{content:"";position:fixed;inset:0;background:radial-gradient(60% 50% at 50% 55%,rgba(138,47,53,.24),transparent 70%)}
+main{position:fixed;inset:0;display:grid;place-items:center;padding:24px;text-align:center}
+main>*{grid-area:1/1;max-width:680px;width:100%}
+
+#lyric{
+    direction:rtl;
+    font-style:normal;
+    font-weight:500;
+    font-family:'Noto Nastaliq Urdu','Jameel Noori Nastaleeq','Nafees Nastaleeq','Alvi Nastaleeq','Gulzar','Scheherazade New',serif;
+    font-size:clamp(26px,6vw,50px);
+    line-height:2.4;
+    letter-spacing:0;
+    word-spacing:.12em;
+    color:#f1e3c6;
+    text-rendering:optimizeLegibility;
+    font-feature-settings:"calt","liga","kern";
+    text-shadow:0 0 26px rgba(201,184,160,.45),0 0 60px rgba(138,47,53,.35);
+    padding:.25em .1em;
+    overflow-wrap:anywhere;
+    pointer-events:none;
+    opacity:0;filter:blur(10px);
+    transition:opacity .7s ease,filter .7s ease;
+}
+#lyric.in{opacity:1;filter:blur(0)}
+#lyric.en{direction:ltr;font-family:'Manrope',system-ui,sans-serif;font-size:18px;line-height:1.5;letter-spacing:.05em}
+
+#start{
+    justify-self:center;width:auto;min-height:52px;padding:0 44px;border-radius:999px;
+    border:1px solid rgba(201,184,160,.55);color:var(--ink);cursor:pointer;
+    background:linear-gradient(135deg,rgba(201,184,160,.16),rgba(138,47,53,.22));
+    box-shadow:0 0 26px rgba(138,47,53,.28),inset 0 1px 0 rgba(255,255,255,.1);
+    font:italic 400 12px 'Manrope',sans-serif;letter-spacing:.32em;
+    transition:opacity .9s ease,transform .3s;
+}
+#start:active{transform:scale(.96)}
+#start.hide{opacity:0;pointer-events:none}
+#lyric .key{font-weight:500;font-size:1.28em;color:inherit;text-shadow:inherit}
+</style>
+</head>
+<body>
+<main>
+    <button id="start">START</button>
+    <p id="lyric" lang="ur" dir="rtl"></p>
+</main>
+
+<script>
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const $ = s => document.querySelector(s);
+
+const SONG_SRC = "alfaz.mp3";
+
+const fmtLine = t => t.replace(/\*(.+?)\*/g, '<b class="key">$1</b>');
+
+// *star* ke andar wale lafz important hain, wo bare aur golden dikhte hain
+const LYRIC_LINES = [
+    "اُن کی *تعریف* میں کہیں کیا،",
+    "*الفاظ* ہی نہیں ہیں۔",
+    "جو کچھ میرا ہے، *سب کچھ* اُن کا،",
+    "اُن سے *زیادہ*، قسم سے ہم کو،",
+    "کوئی *خاص* ہی نہیں ہے۔",
+    "*خیال* ہے بڑا اُن کا۔"
+];
+
+// [lineIndex, startSecond]. Timing theek karni ho to sirf seconds badlo,
+// ya page ko lyrics.html?sync se kholo aur har line ke shuru par tap karo.
+const LYRIC_CUES = [
+    [0, 1.0],  [1, 5.2],  [2, 9.2],  [3, 14.9], [4, 19.0], [5, 22.0],
+    [0, 28.2], [1, 33.4], [2, 37.4], [3, 42.0], [4, 46.5], [5, 49.5]
+];
+
+const LYRIC_END = 56.8;
+
+const SYNC_MODE = location.search.includes("sync");
+
+const audio = new Audio(SONG_SRC);
+audio.preload = "auto";
+
+// song ka time, ya agar song na chale to timer
+let useTimer = false, t0 = 0;
+const nowT = () => useTimer ? (performance.now() - t0) / 1000 : audio.currentTime;
+const waitFor = t => new Promise(res => {
+    const tick = () => (nowT() >= t || (!useTimer && audio.ended)) ? res() : requestAnimationFrame(tick);
+    tick();
+});
+
+async function runSync(lyric) {
+    const marks = [];
+    lyric.classList.add("en");
+    lyric.dir = "ltr";
+    lyric.textContent = "Tap anywhere exactly when each line starts (" + LYRIC_CUES.length + " taps)";
+    lyric.classList.add("in");
+    await sleep(400);
+    await new Promise(res => {
+        const h = () => {
+            if (!marks.length) { lyric.classList.remove("en"); lyric.dir = "rtl"; }
+            marks.push(+nowT().toFixed(1));
+            lyric.classList.remove("in");
+            lyric.innerHTML = fmtLine(LYRIC_LINES[LYRIC_CUES[marks.length - 1][0]]);
+            void lyric.offsetWidth;
+            lyric.classList.add("in");
+            if (marks.length === LYRIC_CUES.length) {
+                document.removeEventListener("pointerdown", h);
+                res();
+            }
+        };
+        document.addEventListener("pointerdown", h);
+    });
+    await sleep(2500);
+    lyric.classList.add("en");
+    lyric.dir = "ltr";
+    lyric.textContent = "Times: " + marks.join(", ");
+    console.log("LYRIC TIMES:", JSON.stringify(marks));
+}
+
+$("#start").onclick = async () => {
+    const btn = $("#start");
+    const lyric = $("#lyric");
+    btn.disabled = true;
+
+    audio.currentTime = 0;
+    audio.volume = 1;
+    try {
+        await audio.play();
+    } catch (err) {
+        console.error("Song could not play:", err, SONG_SRC);
+        useTimer = true;
+        t0 = performance.now();
+        alert("The song could not be played. Check that assets/songs/alfaz.mp3 is next to this file. The lyrics will still show.");
+    }
+
+    btn.classList.add("hide");
+    await sleep(900);
+
+    if (SYNC_MODE) { await runSync(lyric); return; }
+
+    for (let k = 0; k < LYRIC_CUES.length; k++) {
+        const [li, at] = LYRIC_CUES[k];
+        await waitFor(at);
+
+        lyric.innerHTML = fmtLine(LYRIC_LINES[li]);
+        void lyric.offsetWidth;
+        lyric.classList.add("in");
+
+        const next = k + 1 < LYRIC_CUES.length ? LYRIC_CUES[k + 1][1] : LYRIC_END;
+        await waitFor(next - 0.7);
+        lyric.classList.remove("in");
+    }
+
+    await waitFor(LYRIC_END);
+
+    for (let v = 1; v > 0; v -= 1 / 15) {
+        audio.volume = Math.max(0, v);
+        await sleep(100);
+    }
+    audio.pause();
+};
+</script>
+</body>
+</html>
